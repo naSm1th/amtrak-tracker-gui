@@ -20,6 +20,32 @@ struct StationUpdate<'a> {
     state: [StationStateForTrain<'a>; 3],
 }
 
+pub trait StationStates {
+    fn to_station_states(
+        &self,
+        routes: &std::collections::HashMap<String, gtfs_structures::Route, std::hash::RandomState>,
+        stops: &std::collections::HashMap<
+            String,
+            Arc<gtfs_structures::Stop>,
+            std::hash::RandomState,
+        >,
+    ) -> std::option::Option<StationUpdate>;
+}
+
+impl StationStates for gtfs_rt::VehiclePosition {
+    fn to_station_states(
+        &self,
+        routes: &std::collections::HashMap<String, gtfs_structures::Route, std::hash::RandomState>,
+        stops: &std::collections::HashMap<
+            String,
+            Arc<gtfs_structures::Stop>,
+            std::hash::RandomState,
+        >,
+    ) -> std::option::Option<StationUpdate> {
+        return None;
+    }
+}
+
 pub trait PrettyPositionString {
     fn to_pretty_position_string(
         &self,
@@ -86,6 +112,10 @@ async fn data_fetch_task(app: &tauri::AppHandle) {
     let _amtrak_url = "https://content.amtrak.com/content/gtfs/GTFS.zip";
     let amtrak_midwest_routes =
         ["Empire Builder", "Borealis", "Hiawatha Service"].map(|entity| entity.to_string());
+    let amtrak_midwest_stations = [
+        "STP", "RDW", "WIN", "LSE", "TOH", "WDL", "POG", "CBS", "MKE", "MKA", "SVT", "CHI",
+    ]
+    .map(|entity| entity.to_string());
 
     let gtfs = gtfs_structures::GtfsReader::default()
         .read_stop_times(false)
@@ -138,6 +168,18 @@ async fn data_fetch_task(app: &tauri::AppHandle) {
                                     .unwrap()
                                     .bearing
                                     .is_some()
+                        })
+                        .filter(|entity| {
+                            amtrak_midwest_stations.iter().any(|station_name| {
+                                station_name
+                                    == entity
+                                        .vehicle
+                                        .as_ref()
+                                        .unwrap()
+                                        .stop_id
+                                        .as_ref()
+                                        .unwrap_or(&"".to_string())
+                            })
                         })
                         .for_each(|entity| {
                             match entity
