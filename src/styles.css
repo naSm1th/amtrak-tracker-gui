@@ -88,7 +88,7 @@ button {
 }
 
 @keyframes IncomingBlink {
-  to {
+  50% {
     fill: #ffffff;
   }
 }
@@ -101,7 +101,7 @@ button {
 .EmpireBuilderIncoming {
   fill: #be3432;
   stroke-width: 0px;
-  animation: IncomingBlink 2s steps(2, end) infinite;
+  animation: IncomingBlink 2s step-start infinite;
 }
 
 .BorealisStopped {
