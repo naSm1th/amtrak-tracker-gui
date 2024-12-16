@@ -1,23 +1,26 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use gtfs_rt::FeedEntity;
 use prost::Message;
 
 use serde::Serialize;
+use serde_json::map::Iter;
 use tauri::Emitter;
 
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct StationStateForTrain<'a> {
-    train: &'a str,
-    state: &'a str,
+pub struct StationStateForTrain {
+    train: String,
+    state: String,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct StationUpdate<'a> {
-    station: &'a str,
-    state: [StationStateForTrain<'a>; 3],
+pub struct StationUpdate {
+    station: String,
+    state: Vec<StationStateForTrain>,
 }
 
 pub trait StationStates {
@@ -29,10 +32,10 @@ pub trait StationStates {
             Arc<gtfs_structures::Stop>,
             std::hash::RandomState,
         >,
-    ) -> std::option::Option<StationUpdate>;
+    ) -> HashMap<&str, StationUpdate>;
 }
 
-impl StationStates for gtfs_rt::VehiclePosition {
+impl<T: Iterator<Item = FeedEntity>> StationStates for T {
     fn to_station_states(
         &self,
         routes: &std::collections::HashMap<String, gtfs_structures::Route, std::hash::RandomState>,
@@ -41,8 +44,13 @@ impl StationStates for gtfs_rt::VehiclePosition {
             Arc<gtfs_structures::Stop>,
             std::hash::RandomState,
         >,
-    ) -> std::option::Option<StationUpdate> {
-        return None;
+    ) -> HashMap<&str, StationUpdate> {
+        let mut updates: HashMap<&str, StationUpdate> = Default::default();
+        // need to iterate over the FeedEntity iterator
+        // insert stations and states as we go
+        // self.cloned().for_each(|entity| {});
+
+        return updates;
     }
 }
 
@@ -113,7 +121,7 @@ async fn data_fetch_task(app: &tauri::AppHandle) {
     let amtrak_midwest_routes =
         ["Empire Builder", "Borealis", "Hiawatha Service"].map(|entity| entity.to_string());
     let amtrak_midwest_stations = [
-        "STP", "RDW", "WIN", "LSE", "TOH", "WDL", "POG", "CBS", "MKE", "MKA", "SVT", "CHI",
+        "MSP", "RDW", "WIN", "LSE", "TOH", "WDL", "POG", "CBS", "MKE", "MKA", "SVT", "CHI",
     ]
     .map(|entity| entity.to_string());
 
@@ -142,7 +150,7 @@ async fn data_fetch_task(app: &tauri::AppHandle) {
                 let rt_data = body.unwrap();
                 let message = gtfs_rt::FeedMessage::decode(rt_data);
                 if message.is_ok() {
-                    message
+                    let status = message
                         .unwrap()
                         .entity
                         .iter()
@@ -181,43 +189,86 @@ async fn data_fetch_task(app: &tauri::AppHandle) {
                                         .unwrap_or(&"".to_string())
                             })
                         })
-                        .for_each(|entity| {
-                            match entity
+                        .map(|entity| StationUpdate {
+                            station: entity
                                 .vehicle
                                 .as_ref()
                                 .unwrap()
-                                .to_pretty_position_string(&gtfs.routes, &gtfs.stops)
-                            {
-                                Some(trip_data) => println!("{}", trip_data),
-                                None => println!("No data???"),
-                            }
-                        });
+                                .stop_id
+                                .as_ref()
+                                .unwrap_or(&"".to_string())
+                                .clone(),
+                            state: [StationStateForTrain {
+                                train: gtfs
+                                    .routes
+                                    .get(
+                                        entity
+                                            .vehicle
+                                            .as_ref()
+                                            .unwrap()
+                                            .trip
+                                            .as_ref()
+                                            .unwrap()
+                                            .route_id
+                                            .as_ref()
+                                            .unwrap_or(&"<no route id>".to_string()),
+                                    )
+                                    .and_then(|this_route| {
+                                        Some(
+                                            this_route
+                                                .long_name
+                                                .clone()
+                                                .unwrap_or("<no route name>".to_string()),
+                                        )
+                                    })
+                                    .unwrap_or("<no route found>".to_string()),
+                                state: match entity.vehicle.as_ref().unwrap().current_status() {
+                                    gtfs_rt::vehicle_position::VehicleStopStatus::InTransitTo => {
+                                        "Incoming".to_string()
+                                    }
+                                    gtfs_rt::vehicle_position::VehicleStopStatus::StoppedAt => {
+                                        "Stopped".to_string()
+                                    }
+                                    gtfs_rt::vehicle_position::VehicleStopStatus::IncomingAt => {
+                                        "Incoming".to_string()
+                                    }
+                                },
+                            }]
+                            .to_vec(),
+                        })
+                        .collect::<Vec<StationUpdate>>();
+                    println!("{:?}", status);
+                    for element in status {
+                        app.emit("station-update", element)
+                            .expect("Failed to emit message");
+                    }
                 }
             }
         }
 
         // send to frontend
-        app.emit(
-            "station-update",
-            StationUpdate {
-                station: "MKE",
-                state: [
-                    StationStateForTrain {
-                        train: "EmpireBuilder",
-                        state: "Incoming",
-                    },
-                    StationStateForTrain {
-                        train: "Borealis",
-                        state: "Empty",
-                    },
-                    StationStateForTrain {
-                        train: "Hiawatha",
-                        state: "Empty",
-                    },
-                ],
-            },
-        )
-        .expect("Failed to emit message");
+        // app.emit(
+        //     "station-update",
+        //     StationUpdate {
+        //         station: "MKE".to_string(),
+        //         state: [
+        //             StationStateForTrain {
+        //                 train: "EmpireBuilder".to_string(),
+        //                 state: "Incoming".to_string(),
+        //             },
+        //             StationStateForTrain {
+        //                 train: "Borealis".to_string(),
+        //                 state: "Empty".to_string(),
+        //             },
+        //             StationStateForTrain {
+        //                 train: "Hiawatha".to_string(),
+        //                 state: "Empty".to_string(),
+        //             },
+        //         ]
+        //         .to_vec(),
+        //     },
+        // )
+        // .expect("Failed to emit message");
         tokio::time::sleep(Duration::from_secs(10)).await;
     }
 }

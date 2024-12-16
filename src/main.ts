@@ -1,7 +1,7 @@
 import { listen } from '@tauri-apps/api/event';
 
 enum Station {
-  StPaul = "STP",
+  StPaul = "MSP",
   RedWing = "RDW",
   Winona = "WIN",
   LaCrosse = "LSE",
@@ -24,7 +24,7 @@ enum StationState {
 enum Train {
   Hiawatha = "Hiawatha",
   Borealis = "Borealis",
-  EmpireBuilder = "EmpireBuilder"
+  EmpireBuilder = "Empire Builder"
 }
 
 type StationStateForTrain = {
@@ -78,7 +78,7 @@ listen<StationStateUpdate>('station-update', (event) => {
       let state: StationState = trainState.state;
       
       if (state != StationState.Empty) {
-        let className: string = train.toString() + state.toString();
+        let className: string = train.toString().replace(/\s/g, "") + state.toString();
         console.log("Setting class ", className);
         classList += className + " ";
       }
