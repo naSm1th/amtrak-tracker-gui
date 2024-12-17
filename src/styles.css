@@ -109,14 +109,21 @@ button {
   stroke-width: 0px;
 }
 
-.HiawathaStopped {
+.BorealisIncoming {
+  fill: #4ca0e5;
+  stroke-width: 0px;
+  animation: IncomingBlink 2s step-start infinite;
+}
+
+.HiawathaServiceStopped {
   fill: #0c3d0c;
   stroke-width: 0px;
 }
 
-.HiawathaIncoming {
+.HiawathaServiceIncoming {
   fill: #0c3d0c;
   stroke-width: 0px;
+  animation: IncomingBlink 2s step-start infinite;
 }
 
 @media (prefers-color-scheme: dark) {
