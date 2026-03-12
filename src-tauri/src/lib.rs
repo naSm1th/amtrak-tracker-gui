@@ -88,13 +88,10 @@ impl PrettyPositionString for gtfs_rt::VehiclePosition {
 
             Some(format!(
                 "{} (direction {}): currently {} {} ({}), speed {} mph",
-                this_route_plan
-                    .and_then(|this_route| Some(
-                        this_route
+                this_route_plan.map(|this_route| this_route
                             .long_name
                             .clone()
-                            .unwrap_or("<no route name>".to_string())
-                    ))
+                            .unwrap_or("<no route name>".to_string()))
                     .unwrap_or("<no route found>".to_string()),
                 this_trip.direction_id(),
                 match self.current_status() {
